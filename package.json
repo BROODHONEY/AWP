@@ -1,0 +1,27 @@
+{
+  "name": "awp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@huggingface/inference": "^4.13.15",
+    "@supabase/supabase-js": "^2.105.4",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "hono": "^4.12.18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.7.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
