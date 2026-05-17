@@ -1,14 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
-import 'dotenv'
-require('dotenv').config()
+import 'dotenv/config'
 
 const supabaseUrl = process.env.SUPABASE_URL
-if (!supabaseUrl) {
-  throw new Error('SUPABASE_URL is not defined in environment variables')
-}
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY
-if (!supabaseKey) {
-  throw new Error('SUPABASE_SERVICE_KEY is not defined in environment variables')
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    `Missing Supabase credentials in .env\n` +
+    `SUPABASE_URL: ${supabaseUrl ? 'set ✓' : 'MISSING ✗'}\n` +
+    `SUPABASE_SERVICE_KEY: ${supabaseKey ? 'set ✓' : 'MISSING ✗'}`
+  )
 }
 
-export const db = createClient(supabaseUrl, supabaseKey)
+export const db = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  }
+})

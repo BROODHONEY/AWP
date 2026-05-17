@@ -3,44 +3,39 @@ import 'dotenv/config'
 
 const hf = new HfInference(process.env.HF_API_KEY)
 
+// BAAI/bge-small-en-v1.5 outputs 384-dimensional vectors
+// Make sure your Supabase schema uses vector(384) not vector(1536)
 const EMBEDDING_MODEL = 'BAAI/bge-small-en-v1.5'
-export const EMBEDDING_DIMENSIONS = 384  // export so schema.sql reminder is in code
+export const EMBEDDING_DIMENSIONS = 384
 
+/**
+ * Converts a text string into a 384-dimensional embedding vector.
+ * Used for both storing entries (embed the topic) and querying (embed the question).
+ */
 export async function embed(text: string): Promise<number[]> {
   const result = await hf.featureExtraction({
     model: EMBEDDING_MODEL,
     inputs: text.trim(),
   })
 
-  if (!Array.isArray(result)) {
-    throw new Error('Unexpected embedding response shape from HuggingFace')
-  }
+  // HuggingFace can return number[] or number[][] depending on input type
+  // Single string input returns number[] directly
+  let vector: number[]
 
-  // If the model returns a 2D array (batch of 1), flatten it
-  const vector = Array.isArray(result[0]) ? (result[0] as number[]) : (result as number[])
+  if (Array.isArray(result) && Array.isArray(result[0])) {
+    // Got number[][] — take the first row
+    vector = result[0] as number[]
+  } else {
+    // Got number[] directly
+    vector = result as number[]
+  }
 
   if (vector.length !== EMBEDDING_DIMENSIONS) {
     throw new Error(
-      `Expected ${EMBEDDING_DIMENSIONS} dimensions, got ${vector.length}. Wrong model?`
+      `Expected ${EMBEDDING_DIMENSIONS} dimensions, got ${vector.length}. ` +
+      `Check that the model is ${EMBEDDING_MODEL}.`
     )
   }
 
   return vector
-}
-
-
-export async function embedBatch(texts: string[]): Promise<number[][]> {
-  const result = await hf.featureExtraction({
-    model: EMBEDDING_MODEL,
-    inputs: texts.map(t => t.trim()),
-  })
-
-  // When inputs is string[], result is number[][]
-  // TODO: validate the shape and return it
-  // Each inner array should be EMBEDDING_DIMENSIONS long
-    if (!Array.isArray(result) || !Array.isArray(result[0])) {
-    throw new Error('Unexpected embedding response shape from HuggingFace for batch')
-  }
-  
-  return result as number[][]
 }

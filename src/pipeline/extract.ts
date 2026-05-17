@@ -4,7 +4,15 @@ import 'dotenv/config'
 
 const hf = new HfInference(process.env.HF_API_KEY)
 
-const EXTRACTION_MODEL = 'mistralai/Mistral-7B-Instruct-v0.3'
+// Qwen2.5-72B-Instruct: free, widely available across HF providers,
+// better at structured JSON output than Mistral-7B
+const EXTRACTION_MODEL = 'Qwen/Qwen2.5-72B-Instruct'
+const MODELS = [
+  'Qwen/Qwen2.5-72B-Instruct',
+  'meta-llama/Llama-3.1-8B-Instruct',
+  'HuggingFaceH4/zephyr-7b-beta',
+  'mistralai/Mistral-7B-Instruct-v0.2',  // v0.2 has better provider support than v0.3
+]
 
 export interface ExtractionResult {
   topic: string
@@ -14,118 +22,109 @@ export interface ExtractionResult {
   volatility_class: 'permanent' | 'slow' | 'medium' | 'fast'
 }
 
-// Mistral uses a specific prompt format: [INST] ... [/INST]
-// This matters — using the wrong format gives bad results
-function buildPrompt(sourceUrl: string, strippedText: string): string {
-  return `[INST] You are a structured knowledge extractor. Extract facts from the webpage content below.
+const SYSTEM_PROMPT = `You are a structured knowledge extractor for the Agent Web Protocol (AWP).
+Your job is to extract discrete, verifiable facts from webpage content.
 
-Return ONLY a valid JSON object. No explanation, no markdown fences, no preamble. Just the JSON.
+Return ONLY a valid JSON object. No explanation, no markdown fences, no extra text before or after.
 
-Required shape:
+Required JSON shape:
 {
-  "topic": "concise label for the main subject",
+  "topic": "concise label for the main subject of this page",
   "facts": [
-    { "claim": "one discrete fact", "type": "text|numeric|boolean|date", "value": "optional", "unit": "optional" }
+    { "claim": "one discrete fact", "type": "text", "value": "optional actual value", "unit": "optional unit" }
   ],
-  "source_type": "primary|secondary|aggregator",
+  "source_type": "primary",
   "extraction_quality": 0.85,
-  "volatility_class": "permanent|slow|medium|fast"
+  "volatility_class": "medium"
 }
 
 Rules:
 - facts must be discrete verifiable claims, not prose summaries
-- extraction_quality: 0.0 = unreadable, 1.0 = perfect
-- volatility_class: permanent=never changes, slow=years, medium=months, fast=days
-
-Source URL: ${sourceUrl}
-
-Content:
-${strippedText.slice(0, 2000)}
-[/INST]`
-}
+- type must be one of: text, numeric, boolean, date
+- source_type must be one of: primary, secondary, aggregator
+- extraction_quality: your honest rating from 0.0 (unreadable) to 1.0 (perfect clean content)
+- volatility_class: permanent (never changes), slow (years), medium (months), fast (days)`
 
 /**
  * Sends stripped webpage text to a HuggingFace model and returns structured facts.
- * More defensive than the Claude version — open models need careful JSON parsing.
  */
 export async function extractFacts(
   sourceUrl: string,
   strippedText: string
 ): Promise<ExtractionResult> {
-  const prompt = buildPrompt(sourceUrl, strippedText)
+  let lastError: Error = new Error('No models available')
 
-  const response = await hf.textGeneration({
-    model: EXTRACTION_MODEL,
-    inputs: prompt,
-    parameters: {
-      max_new_tokens: 800,
-      temperature: 0.1,      // low temperature = more predictable output
-      return_full_text: false, // only return the generated part, not the prompt
-    },
-  })
+  for (const model of MODELS) {
+    try {
+      console.log(`  Trying model: ${model}`)
 
-  const rawText = response.generated_text.trim()
+      const response = await hf.chatCompletion({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: `Source URL: ${sourceUrl}\n\nContent:\n${strippedText.slice(0, 2000)}`,
+          },
+        ],
+        max_tokens: 1000,
+        temperature: 0.1,
+      })
 
-  // Parse the JSON — open models sometimes wrap it in fences or add text
-  const parsed = safeParseJSON(rawText)
+      const rawText = response.choices[0]?.message?.content?.trim() ?? ''
+      if (!rawText) throw new Error('Empty response')
 
-  if (!parsed) {
-    throw new Error(
-      `Failed to parse JSON from model response.\nRaw response:\n${rawText}`
-    )
+      const parsed = safeParseJSON(rawText)
+      if (!parsed) {
+        console.error('Raw response:', rawText)
+        throw new Error('Failed to parse JSON')
+      }
+
+      if (!parsed.topic || !Array.isArray(parsed.facts)) {
+        throw new Error(`Missing required fields: ${JSON.stringify(parsed)}`)
+      }
+
+      console.log(`  Success with model: ${model}`)
+
+      return {
+        topic:              String(parsed.topic),
+        facts:              parsed.facts as Fact[],
+        source_type:        (parsed.source_type  as ExtractionResult['source_type'])        ?? 'secondary',
+        extraction_quality: Number(parsed.extraction_quality ?? 0.5),
+        volatility_class:   (parsed.volatility_class as ExtractionResult['volatility_class']) ?? 'medium',
+      }
+
+    } catch (err: any) {
+      const body = err?.httpResponse?.body
+      const msg  = typeof body === 'object' ? JSON.stringify(body) : String(body ?? err.message)
+      console.warn(`  Model ${model} failed: ${msg}`)
+      lastError = new Error(msg)
+      // continue to next model
+    }
   }
 
-  // Validate required fields exist
-  if (!parsed.topic || !Array.isArray(parsed.facts)) {
-    throw new Error(
-      `Model returned JSON but missing required fields.\nParsed: ${JSON.stringify(parsed)}`
-    )
-  }
-
-  // Fill in defaults for optional fields so downstream code doesn't break
-  return {
-    topic: parsed.topic as string,
-    facts: parsed.facts as Fact[],
-    source_type: (parsed.source_type as 'primary' | 'secondary' | 'aggregator') ?? 'secondary',
-    extraction_quality: (parsed.extraction_quality as number) ?? 0.5,
-    volatility_class: (parsed.volatility_class as 'permanent' | 'slow' | 'medium' | 'fast') ?? 'medium',
-  }
+  throw lastError
 }
 
 /**
- * Tries to extract valid JSON from a string that might have extra noise around it.
- * Open models sometimes add "Here is the JSON:" or wrap in ```json fences.
+ * Tries to extract valid JSON from a string that might have noise around it.
+ * Handles: clean JSON, text before/after JSON, markdown code fences.
  */
 function safeParseJSON(text: string): Record<string, unknown> | null {
-  // Attempt 1: parse directly — works if model was well-behaved
-  try {
-    return JSON.parse(text)
-  } catch {
-    // continue to next attempt
-  }
+  // Attempt 1: direct parse — works when model behaves perfectly
+  try { return JSON.parse(text) } catch { /* continue */ }
 
-  // Attempt 2: find the first { and last } and parse what's between them
-  // Handles cases where model adds text before or after the JSON
+  // Attempt 2: find the outermost { } block
   const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-
-  if (start !== -1 && end !== -1 && end > start) {
-    try {
-      return JSON.parse(text.slice(start, end + 1))
-    } catch {
-      // continue
-    }
+  const end   = text.lastIndexOf('}')
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(text.slice(start, end + 1)) } catch { /* continue */ }
   }
 
-  // Attempt 3: strip markdown fences if present
-  // Sometimes models return ```json\n{...}\n``` or ```\n{...}\n```
-  const jsonFenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
-  if (jsonFenceMatch && jsonFenceMatch[1]) {
-    try {
-      return JSON.parse(jsonFenceMatch[1].trim())
-    } catch {
-      // continue
-    }
+  // Attempt 3: strip ```json ... ``` or ``` ... ``` fences
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  if (fence?.[1]) {
+    try { return JSON.parse(fence[1].trim()) } catch { /* continue */ }
   }
 
   return null
