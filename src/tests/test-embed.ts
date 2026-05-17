@@ -1,4 +1,4 @@
-import { embed } from './pipeline/embed'
+import { embed } from '../pipeline/embed'
 
 async function test() {
   console.log('Testing embedding...')

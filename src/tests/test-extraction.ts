@@ -1,5 +1,5 @@
-import { fetchAndStrip } from './pipeline/search'
-import { extractFacts } from './pipeline/extract'
+import { fetchAndStrip } from '../pipeline/search'
+import { extractFacts } from '../pipeline/extract'
 
 async function test() {
   const url = 'https://en.wikipedia.org/wiki/Python_(programming_language)'

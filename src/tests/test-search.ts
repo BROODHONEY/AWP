@@ -1,4 +1,4 @@
-import { webSearch, fetchAndStrip } from './pipeline/search'
+import { webSearch, fetchAndStrip } from '../pipeline/search'
 
 async function test() {
   // 1. Search for something real

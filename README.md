@@ -1,4 +1,1 @@
-# Parallel web
-Built by Agents, For Agents
-
-### Build with Agent Web Protocol (AWP)
+# Agent Web Protocol (AWP) Prototype v0.1
