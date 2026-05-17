@@ -1,7 +1,7 @@
 import 'dotenv/config'
-import { db } from './db/client'
-import { writeEntry, searchEntries, getEntry } from './db/entries'
-import { embed } from './pipeline/embed'
+import { db } from '../db/client'
+import { writeEntry, searchEntries, getEntry } from '../db/entries'
+import { embed } from '../pipeline/embed'
 
 function decodeJWT(token: string) {
   // JWT is three base64 parts separated by dots
