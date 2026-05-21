@@ -20,11 +20,3 @@ export const db = createClient(supabaseUrl, supabaseKey, {
   }
 })
 
-export interface NewEntry {
-  topic:              string
-  facts:              Fact[]
-  source_url:         string
-  embedding:          number[]
-  extraction_quality?: number    
-  volatility_class?:   string
-}
