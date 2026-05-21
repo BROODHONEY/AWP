@@ -85,7 +85,7 @@ export async function webSearch(query: string): Promise<string[]> {
 
   } catch (err) {
     console.warn('DuckDuckGo search failed:', err)
-    return []
   }
 
+  return []
 }
