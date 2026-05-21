@@ -3,7 +3,7 @@ import { embed } from '../pipeline/embed'
 import { webSearch, fetchAndStrip } from '../pipeline/search'
 import { extractFacts } from '../pipeline/extract'
 import { searchEntries, writeEntry, searchQueries, writeQuery, getEntry } from '../db/entries'
-import { computeConfidence, isStale } from '../pipeline/confidence'
+import { computeConfidence, isStale, confidenceLabel } from '../pipeline/confidence'
 
 export const queryRouter = new Hono()
 
@@ -48,7 +48,8 @@ queryRouter.get('/', async (c) => {
             facts:      entry.facts,
             source_url: entry.source_url,
             fetched_at: entry.fetched_at,
-            confidence,
+            confidence: confidence,
+            confidence_label: confidenceLabel(confidence),
           })
         }
 
@@ -76,15 +77,15 @@ queryRouter.get('/', async (c) => {
         await writeQuery(best.id, q, queryEmbedding)
 
         return c.json({
-          hit:        true,
-          source:     'cache',
-          topic:      best.topic,
-          facts:      best.facts,
-          source_url: best.source_url,
-          fetched_at: best.fetched_at,
-          similarity: best.similarity,
-          confidence,
-        })
+            hit:        true,
+            source:     'cache',
+            topic:      best.topic,
+            facts:      best.facts,
+            source_url: best.source_url,
+            fetched_at: best.fetched_at,
+            confidence: confidence,
+            confidence_label: confidenceLabel(confidence),
+          })
       }
 
       console.log(`Entry stale (confidence: ${confidence}) — re-fetching from web...`)
@@ -138,7 +139,8 @@ queryRouter.get('/', async (c) => {
       facts:      entry.facts,
       source_url: entry.source_url,
       fetched_at: entry.fetched_at,
-      confidence,
+      confidence: confidence,
+      confidence_label: confidenceLabel(confidence),
     })
 
   } catch (err: any) {

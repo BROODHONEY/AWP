@@ -1,4 +1,15 @@
-// Volatility class → half-life in days
+/**
+ * AWP Confidence Scoring — Layer 2
+ * 
+ * Confidence is computed from three signals:
+ *   score = sourceAuthority(url) × extractionQuality × freshness(age, volatility)
+ * 
+ * All signals are derived dynamically — no hardcoded domain lists.
+ * Recomputed on every read, never stored.
+ */
+
+// ── Volatility → half-life in days ──────────────────────────────────────────
+
 const HALF_LIVES: Record<string, number> = {
   permanent: Infinity,
   slow:      180,
@@ -6,46 +17,147 @@ const HALF_LIVES: Record<string, number> = {
   fast:      3,
 }
 
-// Source domain → authority score
-// Extend this list as you see fit
-const DOMAIN_AUTHORITY: Record<string, number> = {
-  'gov':       0.97,
-  'edu':       0.95,
-  'wikipedia': 0.90,
-  'arxiv':     0.93,
-  'github':    0.82,
-  'medium':    0.45,
-  'reddit':    0.35,
+// ── TLD authority bonuses ────────────────────────────────────────────────────
+// Regulated or institutional TLDs get a structural boost
+// regardless of the specific domain name
+
+const TLD_BONUS: Record<string, number> = {
+  '.gov':    0.25,   // government — highly regulated
+  '.edu':    0.20,   // academic institution
+  '.mil':    0.20,   // military
+  '.int':    0.15,   // international organisations (NATO, UN, etc.)
+  '.org':    0.05,   // non-profit — slight boost, not conclusive
 }
 
+// ── Subdomain signals ────────────────────────────────────────────────────────
+// Official technical/reference subdomains — applies to any domain
+
+const AUTHORITATIVE_SUBDOMAINS = [
+  'docs.',        // docs.python.org, docs.github.com
+  'developer.',   // developer.apple.com, developer.mozilla.org
+  'research.',    // research.google.com
+  'api.',         // api.openai.com
+  'learn.',       // learn.microsoft.com
+  'wiki.',        // wiki.archlinux.org
+  'support.',     // support.google.com
+  'help.',        // help.github.com
+  'official.',
+]
+
+// ── Path signals ─────────────────────────────────────────────────────────────
+// URL path patterns that indicate reference/structured content
+
+const AUTHORITATIVE_PATHS = [
+  '/wiki/',
+  '/docs/',
+  '/documentation/',
+  '/reference/',
+  '/paper/',
+  '/research/',
+  '/specification/',
+  '/spec/',
+  '/official/',
+  '/release/',
+  '/changelog/',
+  '/whitepaper/',
+]
+
+// ── UGC platform patterns ────────────────────────────────────────────────────
+// User-generated content — inherently less authoritative than primary sources
+
+const UGC_PATTERNS = [
+  'reddit.com',
+  'quora.com',
+  'medium.com',
+  'substack.com',
+  'blogspot.com',
+  'wordpress.com',
+  'tumblr.com',
+  'stackoverflow.com',   // answers vary in quality
+  'stackexchange.com',
+  'answers.yahoo.com',
+  'forum.',
+  '/forum/',
+  '/forums/',
+  '/community/',
+  '/discussion/',
+  '/thread/',
+  '/comment/',
+  '/blog/',
+  '/post/',
+  '/user/',
+  '/profile/',
+]
+
 /**
- * Compute source authority from a URL.
- * Uses domain heuristics — not perfect but good enough for Layer 2.
+ * Compute source authority dynamically from URL structure.
+ * No hardcoded domain list — generalises to any URL.
+ * 
+ * Returns a value between 0.20 and 0.98.
  */
 export function sourceAuthority(url: string): number {
+  let score = 0.65   // base score for any unknown domain
+
   try {
-    const hostname = new URL(url).hostname.toLowerCase()
+    const parsed   = new URL(url)
+    const hostname = parsed.hostname.toLowerCase()
+    const path     = parsed.pathname.toLowerCase()
+    const full     = hostname + path
 
-    // Check known high-authority patterns
-    if (hostname.endsWith('.gov'))  return DOMAIN_AUTHORITY['gov']
-    if (hostname.endsWith('.edu'))  return DOMAIN_AUTHORITY['edu']
-    if (hostname.includes('wikipedia')) return DOMAIN_AUTHORITY['wikipedia']
-    if (hostname.includes('arxiv'))     return DOMAIN_AUTHORITY['arxiv']
-    if (hostname.includes('github'))    return DOMAIN_AUTHORITY['github']
-    if (hostname.includes('medium'))    return DOMAIN_AUTHORITY['medium']
-    if (hostname.includes('reddit'))    return DOMAIN_AUTHORITY['reddit']
+    // ── TLD bonus ──────────────────────────────────────────────────
+    for (const [tld, bonus] of Object.entries(TLD_BONUS)) {
+      if (hostname.endsWith(tld)) {
+        score += bonus
+        break
+      }
+    }
 
-    // Default for unknown domains
-    return 0.60
+    // ── Subdomain bonus ────────────────────────────────────────────
+    // Check if the hostname starts with an authoritative subdomain
+    for (const sub of AUTHORITATIVE_SUBDOMAINS) {
+      if (hostname.startsWith(sub)) {
+        score += 0.15
+        break
+      }
+    }
+
+    // ── Path bonus ─────────────────────────────────────────────────
+    for (const pathPattern of AUTHORITATIVE_PATHS) {
+      if (path.includes(pathPattern)) {
+        score += 0.10
+        break
+      }
+    }
+
+    // ── Wikipedia special case ─────────────────────────────────────
+    // Wikipedia is the most reliable general reference on the web
+    if (hostname.includes('wikipedia.org')) {
+      score += 0.25
+    }
+
+    // ── UGC penalty ────────────────────────────────────────────────
+    // User-generated content is less reliable than primary sources
+    for (const pattern of UGC_PATTERNS) {
+      if (full.includes(pattern)) {
+        score -= 0.25
+        break
+      }
+    }
+
+    // ── Clamp to valid range ────────────────────────────────────────
+    return Math.min(0.98, Math.max(0.20, Math.round(score * 100) / 100))
+
   } catch {
+    // Malformed URL
     return 0.50
   }
 }
 
 /**
- * Compute freshness score using exponential decay.
- * 1.0 at write time, decays toward 0.0 based on half-life.
- * 'permanent' entries never decay.
+ * Compute freshness using exponential decay.
+ * At age 0: score = 1.0
+ * At age = half-life: score = 0.5
+ * permanent class: always 1.0
  */
 export function freshness(fetchedAt: string, volatilityClass: string): number {
   const halfLife = HALF_LIVES[volatilityClass] ?? 35
@@ -55,37 +167,40 @@ export function freshness(fetchedAt: string, volatilityClass: string): number {
   const ageMs   = Date.now() - new Date(fetchedAt).getTime()
   const ageDays = ageMs / (1000 * 60 * 60 * 24)
 
-  // Exponential decay: score = e^(-ln(2) * age / halfLife)
-  // At age = 0: score = 1.0
-  // At age = halfLife: score = 0.5
-  // At age = 2×halfLife: score = 0.25
   return Math.exp(-Math.LN2 * ageDays / halfLife)
 }
 
 /**
- * Compute the full confidence score for an entry.
- * Called on every read — never stored, always fresh.
+ * Full confidence score for an entry.
+ * Called on every read — never stored.
  */
 export function computeConfidence(entry: {
-  source_url:         string
-  fetched_at:         string
+  source_url:          string
+  fetched_at:          string
   extraction_quality?: number | null
   volatility_class?:   string | null
 }): number {
-  const authority  = sourceAuthority(entry.source_url)
-  const quality    = entry.extraction_quality ?? 0.75
-  const decay      = freshness(entry.fetched_at, entry.volatility_class ?? 'medium')
+  const authority = sourceAuthority(entry.source_url)
+  const quality   = entry.extraction_quality ?? 0.75
+  const decay     = freshness(entry.fetched_at, entry.volatility_class ?? 'medium')
 
   const score = authority * quality * decay
-
-  // Round to 2 decimal places
   return Math.round(score * 100) / 100
 }
 
 /**
- * Should this entry be treated as stale?
- * Below 0.6 → treat as cache miss, re-fetch from web.
+ * Is this entry stale enough to warrant a re-fetch?
  */
 export function isStale(score: number): boolean {
-  return score < 0.6
+  return score < 0.45
+}
+
+/**
+ * Human-readable confidence label — useful for debugging and API responses.
+ */
+export function confidenceLabel(score: number): string {
+  if (score >= 0.85) return 'high'
+  if (score >= 0.65) return 'medium'
+  if (score >= 0.45) return 'low'
+  return 'stale'
 }

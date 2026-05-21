@@ -85,10 +85,7 @@ export async function webSearch(query: string): Promise<string[]> {
 
   } catch (err) {
     console.warn('DuckDuckGo search failed:', err)
+    return []
   }
 
-  // Fallback to Wikipedia
-  console.warn(`No results for "${query}" — falling back to Wikipedia`)
-  const wikiSlug = encodeURIComponent(query.trim().replace(/\s+/g, '_'))
-  return [`https://en.wikipedia.org/wiki/${wikiSlug}`]
 }

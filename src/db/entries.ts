@@ -24,16 +24,25 @@ export async function searchEntries(
  * Write a new entry to the index.
  */
 export async function writeEntry(entry: NewEntry): Promise<Entry> {
+  // Upsert on source_url — if it exists, update it; if not, create it
+  // This is atomic and prevents race condition duplicates
   const { data, error } = await db
     .from('entries')
-    .insert({
-      topic:              entry.topic,
-      facts:              entry.facts,
-      source_url:         entry.source_url,
-      embedding:          entry.embedding,
-      extraction_quality: entry.extraction_quality ?? null,  // ← save these
-      volatility_class:   entry.volatility_class   ?? null,
-    })
+    .upsert(
+      {
+        topic:              entry.topic,
+        facts:              entry.facts,
+        source_url:         entry.source_url,
+        embedding:          entry.embedding,
+        fetched_at:         new Date().toISOString(),
+        extraction_quality: entry.extraction_quality ?? null,
+        volatility_class:   entry.volatility_class   ?? null,
+      },
+      {
+        onConflict: 'source_url',   // unique constraint we added earlier
+        ignoreDuplicates: false,    // update if exists
+      }
+    )
     .select()
     .single()
 
@@ -65,13 +74,28 @@ export async function writeQuery(
   queryText: string,
   embedding: number[]
 ): Promise<void> {
+  // Check if this exact query text already exists for this entry
+  // Prevents duplicate rows from repeated web fetches
+  const { data: existing } = await db
+    .from('queries')
+    .select('id')
+    .eq('entry_id', entryId)
+    .eq('query_text', queryText)
+    .limit(1)
+
+  if (existing && existing.length > 0) {
+    console.log(`  Query already stored, skipping duplicate: "${queryText.slice(0, 60)}"`)
+    return
+  }
+
   const { error } = await db
     .from('queries')
     .insert({ entry_id: entryId, query_text: queryText, embedding })
 
   if (error) {
-    // Non-fatal — log but don't throw
-    console.warn('Failed to write query record:', error.message)
+    console.error('writeQuery FAILED:', error.message)
+  } else {
+    console.log(`  Query stored: "${queryText.slice(0, 60)}"`)
   }
 }
 
