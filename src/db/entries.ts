@@ -7,7 +7,7 @@ import type { Entry, NewEntry } from './types'
  */
 export async function searchEntries(
   embedding: number[],
-  threshold = 0.75,
+  threshold = 0.60,
   limit = 3
 ): Promise<Entry[]> {
   const { data, error } = await db.rpc('search_entries', {
@@ -81,7 +81,7 @@ export async function writeQuery(
  */
 export async function searchQueries(
   embedding: number[],
-  threshold = 0.70
+  threshold = 0.60
 ): Promise<string | null> {
   const { data, error } = await db.rpc('search_queries', {
     query_embedding: embedding,
