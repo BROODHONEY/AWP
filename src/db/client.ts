@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import 'dotenv/config'
+import { Fact } from './types'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY
@@ -18,3 +19,12 @@ export const db = createClient(supabaseUrl, supabaseKey, {
     autoRefreshToken: false,
   }
 })
+
+export interface NewEntry {
+  topic:              string
+  facts:              Fact[]
+  source_url:         string
+  embedding:          number[]
+  extraction_quality?: number    
+  volatility_class?:   string
+}
