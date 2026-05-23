@@ -80,5 +80,36 @@ agentsRouter.get('/me', requireAuth, async (c) => {
       can_write: agent.trust_score >= 0.6,
       can_read:  true,
     },
+  })    
+})
+
+agentsRouter.get('/status', requireAuth, async (c) => {
+  const agent = c.get('agent')
+
+  const queryCount = (agent as any).query_count ?? 0
+  const canWrite   = agent.trust_score >= 0.6
+
+  // Calculate progress to next milestone
+  let nextMilestone: string
+  if      (queryCount < 10)  nextMilestone = `${10  - queryCount} more queries → trust 0.40`
+  else if (queryCount < 25)  nextMilestone = `${25  - queryCount} more queries → trust 0.50`
+  else if (queryCount < 50)  nextMilestone = `${50  - queryCount} more queries → trust 0.58`
+  else if (!canWrite)        nextMilestone = 'Contact node operator for write access promotion'
+  else                       nextMilestone = 'Write access unlocked'
+
+  return c.json({
+    name:            agent.name,
+    trust_score:     agent.trust_score,
+    tier:            agent.tier,
+    query_count:     queryCount,
+    write_count:     agent.write_count,
+    flag_count:      agent.flag_count,
+    can_write:       canWrite,
+    next_milestone:  nextMilestone,
+    path_to_write:   canWrite ? null : [
+      `Current trust: ${agent.trust_score}`,
+      'Make 50 queries with your API key to reach trust 0.58',
+      'Contact the node operator for final promotion to 0.60',
+    ],
   })
 })

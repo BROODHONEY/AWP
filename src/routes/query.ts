@@ -15,12 +15,20 @@ queryRouter.get('/', async (c) => {
     return c.json({ error: 'q parameter is required. Usage: /query?q=your+question' }, 400)
   }
 
+  // If agent provided a key, record the query for trust purposes
+  const apiKey = c.req.header('X-AWP-Key') 
+    ?? c.req.header('Authorization')?.replace('Bearer ', '')
+
+  if (apiKey) {
+    const { getAgentByKey, recordQuery } = await import('../db/agents')
+    const agent = await getAgentByKey(apiKey)
+    if (agent) recordQuery(agent.id).catch(() => {})  // fire and forget
+  }
+
   try {
 
-    // ── Step 1: Embed the query ──────────────────────────────────────
     const queryEmbedding = await embed(q)
 
-    // ── Step 2: Search stored queries first ─────────────────────────
     // Catches rephrased questions about the same topic
     const matchedEntryId = await searchQueries(queryEmbedding)
 
@@ -60,7 +68,6 @@ queryRouter.get('/', async (c) => {
       }
     }
 
-    // ── Step 3: Search by topic embedding ───────────────────────────
     const results = await searchEntries(queryEmbedding)
 
     if (results.length > 0) {
@@ -97,7 +104,6 @@ queryRouter.get('/', async (c) => {
       console.log(`Entry stale (confidence: ${confidence}, flags: ${flagCount}) — re-fetching...`)
     }
 
-    // ── Step 4: Web fallback ─────────────────────────────────────────
     console.log(`Web fetch for: "${q}"`)
 
     const urls = await webSearch(q)

@@ -43,6 +43,38 @@ export async function recordWrite(agentId: string): Promise<void> {
 }
 
 /**
+ * Called after every query from an authenticated agent.
+ * Bumps trust at milestone query counts — gives agents a path
+ * toward write access without requiring writes first.
+ * 
+ * Milestones: 10 queries → 0.40, 25 → 0.50, 50 → 0.58
+ * Still needs one manual promotion to cross 0.60 write threshold.
+ */
+export async function recordQuery(agentId: string): Promise<void> {
+  const { data } = await db
+    .from('agents')
+    .select('trust_score, tier, query_count')
+    .eq('id', agentId)
+    .single()
+
+  if (!data || data.tier === 'owner') return
+
+  const newCount = (data.query_count ?? 0) + 1
+
+  // Trust milestones based on query activity
+  let newTrust = data.trust_score
+  if (newCount === 10  && data.trust_score < 0.40) newTrust = 0.40
+  if (newCount === 25  && data.trust_score < 0.50) newTrust = 0.50
+  if (newCount === 50  && data.trust_score < 0.58) newTrust = 0.58
+
+  await db
+    .from('agents')
+    .update({ query_count: newCount, trust_score: newTrust })
+    .eq('id', agentId)
+}
+
+
+/**
  * Can this agent write to the index?
  * Verified (0.6+) and Owner (0.95+) tiers can write.
  */
