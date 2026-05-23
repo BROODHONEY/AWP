@@ -179,12 +179,19 @@ export function computeConfidence(entry: {
   fetched_at:          string
   extraction_quality?: number | null
   volatility_class?:   string | null
+  flag_count?:         number        // ← add this
 }): number {
-  const authority = sourceAuthority(entry.source_url)
-  const quality   = entry.extraction_quality ?? 0.75
-  const decay     = freshness(entry.fetched_at, entry.volatility_class ?? 'medium')
+  const authority  = sourceAuthority(entry.source_url)
+  const quality    = entry.extraction_quality ?? 0.75
+  const decay      = freshness(entry.fetched_at, entry.volatility_class ?? 'medium')
 
-  const score = authority * quality * decay
+  let score = authority * quality * decay
+
+  // Apply flag penalty if flags exist
+  if (entry.flag_count && entry.flag_count > 0) {
+    score = applyFlagPenalty(score, entry.flag_count)
+  }
+
   return Math.round(score * 100) / 100
 }
 
@@ -203,4 +210,23 @@ export function confidenceLabel(score: number): string {
   if (score >= 0.65) return 'medium'
   if (score >= 0.45) return 'low'
   return 'stale'
+}
+
+// How many flags before confidence starts getting penalised
+const FLAG_THRESHOLD = 3
+
+/**
+ * Apply a flag penalty to a confidence score.
+ * Each flag above the threshold reduces confidence by 15%.
+ * At 3 flags: no penalty yet
+ * At 4 flags: score × 0.85
+ * At 5 flags: score × 0.70
+ * At 7 flags: score × 0.40 → below stale threshold → triggers re-fetch
+ */
+export function applyFlagPenalty(score: number, flagCount: number): number {
+  if (flagCount < FLAG_THRESHOLD) return score
+
+  const flagsOverThreshold = flagCount - FLAG_THRESHOLD
+  const penalty = Math.pow(0.85, flagsOverThreshold)
+  return Math.round(score * penalty * 100) / 100
 }

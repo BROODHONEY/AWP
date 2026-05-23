@@ -116,3 +116,26 @@ export async function searchQueries(
   if (error || !data || data.length === 0) return null
   return data[0].entry_id as string
 }
+
+/**
+ * Unified lookup — tries query table first, then topic embeddings.
+ * Returns the best matching entry or null if nothing found.
+ */
+export async function findBestMatch(
+  embedding: number[]
+): Promise<{ entry: Entry; matchedVia: 'query' | 'topic' } | null> {
+  // Search 1: queries table — catches rephrased questions
+  const queryMatch = await searchQueries(embedding, 0.65)
+  if (queryMatch) {
+    const entry = await getEntry(queryMatch)
+    if (entry) return { entry, matchedVia: 'query' }
+  }
+
+  // Search 2: entries table — catches topic-level matches
+  const entryResults = await searchEntries(embedding, 0.55, 3)
+  if (entryResults.length > 0) {
+    return { entry: entryResults[0], matchedVia: 'topic' }
+  }
+
+  return null
+}

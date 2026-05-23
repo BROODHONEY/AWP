@@ -2,8 +2,9 @@ import { Hono } from 'hono'
 import { embed } from '../pipeline/embed'
 import { webSearch, fetchAndStrip } from '../pipeline/search'
 import { extractFacts } from '../pipeline/extract'
-import { searchEntries, writeEntry, searchQueries, writeQuery, getEntry } from '../db/entries'
+import { searchEntries, writeEntry, searchQueries, writeQuery, getEntry, findBestMatch } from '../db/entries'
 import { computeConfidence, isStale, confidenceLabel } from '../pipeline/confidence'
+import { getFlagCount } from '../db/flags'
 
 export const queryRouter = new Hono()
 
@@ -19,41 +20,43 @@ queryRouter.get('/', async (c) => {
     // ── Step 1: Embed the query ──────────────────────────────────────
     const queryEmbedding = await embed(q)
 
-    // ── Step 2: Search stored queries first ──────────────────────────
-    // This catches "Who wrote 48 laws of power" matching a previous
-    // query "What is the 48 laws of power" — same topic, different phrasing
+    // ── Step 2: Search stored queries first ─────────────────────────
+    // Catches rephrased questions about the same topic
     const matchedEntryId = await searchQueries(queryEmbedding)
 
     if (matchedEntryId) {
       const entry = await getEntry(matchedEntryId)
 
       if (entry) {
+        const flagCount  = await getFlagCount(entry.id)
         const confidence = computeConfidence({
           source_url:         entry.source_url,
           fetched_at:         entry.fetched_at,
           extraction_quality: (entry as any).extraction_quality ?? null,
           volatility_class:   (entry as any).volatility_class   ?? null,
+          flag_count:         flagCount,
         })
 
         if (!isStale(confidence)) {
-          console.log(`Query cache hit: "${q}" → entry "${entry.topic}" (confidence: ${confidence})`)
+          console.log(`Query cache hit: "${q}" → "${entry.topic}" (confidence: ${confidence}, flags: ${flagCount})`)
 
-          // Store this query variant too — so future similar queries also match
+          // Store this variant so future similar queries also match
           await writeQuery(entry.id, q, queryEmbedding)
 
           return c.json({
-            hit:        true,
-            source:     'cache',
-            topic:      entry.topic,
-            facts:      entry.facts,
-            source_url: entry.source_url,
-            fetched_at: entry.fetched_at,
-            confidence: confidence,
+            hit:              true,
+            source:           'cache',
+            topic:            entry.topic,
+            facts:            entry.facts,
+            source_url:       entry.source_url,
+            fetched_at:       entry.fetched_at,
+            confidence,
             confidence_label: confidenceLabel(confidence),
+            flag_count:       flagCount,
           })
         }
 
-        console.log(`Query matched but entry stale (confidence: ${confidence}) — re-fetching...`)
+        console.log(`Query matched but stale (confidence: ${confidence}, flags: ${flagCount}) — re-fetching...`)
       }
     }
 
@@ -61,34 +64,37 @@ queryRouter.get('/', async (c) => {
     const results = await searchEntries(queryEmbedding)
 
     if (results.length > 0) {
-      const best = results[0]
+      const best      = results[0]
+      const flagCount = await getFlagCount(best.id)
 
       const confidence = computeConfidence({
         source_url:         best.source_url,
         fetched_at:         best.fetched_at,
         extraction_quality: (best as any).extraction_quality ?? null,
         volatility_class:   (best as any).volatility_class   ?? null,
+        flag_count:         flagCount,
       })
 
-      console.log(`Topic cache hit: "${best.topic}" (similarity: ${best.similarity?.toFixed(3)}, confidence: ${confidence})`)
+      console.log(`Topic cache hit: "${best.topic}" (similarity: ${best.similarity?.toFixed(3)}, confidence: ${confidence}, flags: ${flagCount})`)
 
       if (!isStale(confidence)) {
-        // Store this query so future variations also hit cache
         await writeQuery(best.id, q, queryEmbedding)
 
         return c.json({
-            hit:        true,
-            source:     'cache',
-            topic:      best.topic,
-            facts:      best.facts,
-            source_url: best.source_url,
-            fetched_at: best.fetched_at,
-            confidence: confidence,
-            confidence_label: confidenceLabel(confidence),
-          })
+          hit:              true,
+          source:           'cache',
+          topic:            best.topic,
+          facts:            best.facts,
+          source_url:       best.source_url,
+          fetched_at:       best.fetched_at,
+          similarity:       best.similarity,
+          confidence,
+          confidence_label: confidenceLabel(confidence),
+          flag_count:       flagCount,
+        })
       }
 
-      console.log(`Entry stale (confidence: ${confidence}) — re-fetching from web...`)
+      console.log(`Entry stale (confidence: ${confidence}, flags: ${flagCount}) — re-fetching...`)
     }
 
     // ── Step 4: Web fallback ─────────────────────────────────────────
@@ -120,7 +126,6 @@ queryRouter.get('/', async (c) => {
       volatility_class:   extracted.volatility_class,
     })
 
-    // Store the original query string so future similar questions hit cache
     await writeQuery(entry.id, q, queryEmbedding)
 
     const confidence = computeConfidence({
@@ -128,19 +133,21 @@ queryRouter.get('/', async (c) => {
       fetched_at:         entry.fetched_at,
       extraction_quality: extracted.extraction_quality,
       volatility_class:   extracted.volatility_class,
+      flag_count:         0,
     })
 
     console.log(`  Written: ${entry.id} (confidence: ${confidence})`)
 
     return c.json({
-      hit:        false,
-      source:     'web',
-      topic:      entry.topic,
-      facts:      entry.facts,
-      source_url: entry.source_url,
-      fetched_at: entry.fetched_at,
-      confidence: confidence,
+      hit:              false,
+      source:           'web',
+      topic:            entry.topic,
+      facts:            entry.facts,
+      source_url:       entry.source_url,
+      fetched_at:       entry.fetched_at,
+      confidence,
       confidence_label: confidenceLabel(confidence),
+      flag_count:       0,
     })
 
   } catch (err: any) {

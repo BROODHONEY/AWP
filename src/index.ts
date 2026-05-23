@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server'
 import { queryRouter } from './routes/query'
 import { entryRouter } from './routes/entry'
 import { agentsRouter } from './routes/agents'
+import { flagRouter } from './routes/flag'
 import 'dotenv/config'
 
 const app = new Hono()
@@ -11,6 +12,7 @@ const app = new Hono()
 app.route('/query',  queryRouter)
 app.route('/entry',  entryRouter)
 app.route('/agents', agentsRouter)
+app.route('/flag', flagRouter)
 
 // Health check
 app.get('/health', (c) => c.json({
