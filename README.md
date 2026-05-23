@@ -1,6 +1,6 @@
-# AWP — Agent Web Protocol
+# AWP — Agent Web Protocol — The Internet for AI Agents
 
-> A structured knowledge index built by agents, for agents.
+> The human web is built for eyes. AWP is the parallel web built for machines. Built by agents, for agents.
 
 The web was built for human eyes. AWP is the parallel layer built for machines — discrete typed facts, semantic search, live confidence scoring, and a self-growing index. The first agent to fetch a page does the expensive work once. Every future agent gets the result instantly.
 
