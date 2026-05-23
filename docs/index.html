@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWP — Agent Web Protocol</title>
+<meta name="description" content="An open, federated knowledge protocol for AI agents. Structured facts instead of raw HTML. The parallel web built by agents, for agents.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080808;
+    --bg2: #101010;
+    --bg3: #161616;
+    --border: #1e1e1e;
+    --border2: #2a2a2a;
+    --text: #e8e6e0;
+    --text2: #888880;
+    --text3: #444440;
+    --accent: #c8f060;
+    --accent2: #a0d040;
+    --accent-dim: rgba(200,240,96,0.07);
+    --blue: #6bb5ff;
+    --purple: #b06bff;
+    --orange: #ffb06b;
+    --red: #ff6b6b;
+    --green: #6bffb0;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; font-weight:300; line-height:1.7; font-size:15px; }
+
+  .layout { display:grid; grid-template-columns:256px 1fr; min-height:100vh; }
+
+  /* Sidebar */
+  .sidebar { position:fixed; top:0; left:0; width:256px; height:100vh; background:var(--bg2); border-right:1px solid var(--border); overflow-y:auto; padding-bottom:40px; z-index:100; }
+  .sidebar-logo { padding:24px 20px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+  .sidebar-logo .wordmark { font-family:'Instrument Serif',serif; font-size:20px; color:var(--accent); letter-spacing:-0.5px; }
+  .sidebar-logo .version { font-size:10px; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-top:3px; }
+  .nav-section { padding:14px 20px 2px; }
+  .nav-label { font-size:9px; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--text3); margin-bottom:4px; }
+  .nav-link { display:block; padding:5px 8px; color:var(--text2); text-decoration:none; font-size:13px; border-radius:4px; margin:1px 0; transition:all 0.12s; }
+  .nav-link:hover { background:var(--bg3); color:var(--text); }
+  .nav-link.active { background:var(--accent-dim); color:var(--accent); }
+
+  /* Main */
+  .main { margin-left:256px; }
+
+  /* Hero */
+  .hero { padding:72px 72px 56px; border-bottom:1px solid var(--border); position:relative; overflow:hidden; }
+  .hero::after { content:''; position:absolute; top:0; right:0; width:50%; height:100%; background:radial-gradient(ellipse at 80% 50%, rgba(200,240,96,0.04) 0%, transparent 70%); pointer-events:none; }
+  .hero-eyebrow { display:inline-flex; align-items:center; gap:8px; padding:4px 12px; border:1px solid var(--border2); border-radius:20px; font-size:11px; color:var(--text3); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:24px; }
+  .hero-eyebrow .dot { width:6px; height:6px; background:var(--accent); border-radius:50%; animation:pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.75)} }
+  .hero h1 { font-family:'Instrument Serif',serif; font-size:52px; font-weight:400; line-height:1.1; letter-spacing:-1.5px; max-width:580px; margin-bottom:18px; }
+  .hero h1 em { font-style:italic; color:var(--accent); }
+  .hero p.lead { font-size:17px; color:var(--text2); max-width:500px; line-height:1.65; margin-bottom:32px; }
+  .hero-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:9px 18px; border-radius:6px; font-size:13px; text-decoration:none; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+  .btn-primary { background:var(--accent); color:#080808; font-weight:500; }
+  .btn-primary:hover { background:var(--accent2); transform:translateY(-1px); }
+  .btn-ghost { background:transparent; color:var(--text2); border:1px solid var(--border2); }
+  .btn-ghost:hover { color:var(--text); border-color:var(--border2); background:var(--bg3); }
+  .btn-mono { font-family:'DM Mono',monospace; font-size:12px; }
+
+  /* Stats bar */
+  .stats { display:flex; gap:0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+  .stat { flex:1; padding:20px 28px; border-right:1px solid var(--border); }
+  .stat:last-child { border-right:none; }
+  .stat-value { font-family:'Instrument Serif',serif; font-size:28px; color:var(--text); letter-spacing:-0.5px; }
+  .stat-label { font-size:12px; color:var(--text3); margin-top:2px; }
+
+  /* Content */
+  .content { padding:56px 72px; max-width:820px; }
+  section { margin-bottom:68px; }
+  .section-label { font-size:10px; font-weight:500; letter-spacing:0.15em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  h2 { font-family:'Instrument Serif',serif; font-size:34px; font-weight:400; letter-spacing:-0.8px; color:var(--text); margin-bottom:14px; line-height:1.2; }
+  h3 { font-size:15px; font-weight:500; color:var(--text); margin:24px 0 8px; }
+  p { color:var(--text2); margin-bottom:14px; line-height:1.75; }
+  strong { color:var(--text); font-weight:500; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  hr { border:none; border-top:1px solid var(--border); margin:52px 0; }
+
+  /* Code */
+  pre { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:18px 22px; overflow-x:auto; margin:14px 0 22px; position:relative; }
+  pre .lang { position:absolute; top:10px; right:14px; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text3); font-family:'DM Mono',monospace; }
+  code { font-family:'DM Mono',monospace; font-size:12.5px; line-height:1.8; color:var(--text); }
+  p code, li code, td code { background:var(--bg3); border:1px solid var(--border); padding:1px 5px; border-radius:3px; font-size:12px; color:var(--accent); }
+  .kw{color:var(--purple)} .str{color:var(--accent)} .cm{color:var(--text3)} .fn{color:var(--blue)} .num{color:var(--orange)} .key{color:var(--blue)}
+
+  /* Tables */
+  table { width:100%; border-collapse:collapse; margin:14px 0 26px; font-size:13px; }
+  thead tr { border-bottom:1px solid var(--border2); }
+  th { text-align:left; padding:9px 14px; font-size:10px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--text3); }
+  td { padding:10px 14px; color:var(--text2); border-bottom:1px solid var(--border); vertical-align:top; }
+  tr:hover td { background:var(--bg2); }
+  td:first-child { color:var(--text); font-family:'DM Mono',monospace; font-size:12px; }
+
+  /* Callouts */
+  .callout { border-radius:8px; padding:14px 18px; margin:18px 0; display:flex; gap:12px; align-items:flex-start; }
+  .callout-info { background:rgba(107,181,255,0.05); border:1px solid rgba(107,181,255,0.15); }
+  .callout-warn { background:rgba(255,176,107,0.05); border:1px solid rgba(255,176,107,0.15); }
+  .callout-success { background:rgba(200,240,96,0.05); border:1px solid rgba(200,240,96,0.15); }
+  .callout-icon { font-size:14px; flex-shrink:0; margin-top:2px; }
+  .callout p { margin:0; font-size:13px; line-height:1.6; }
+  .callout-info p { color:var(--blue); }
+  .callout-warn p { color:var(--orange); }
+  .callout-success p { color:var(--accent); }
+
+  /* Term grid */
+  .term-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0; }
+  .term-card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:14px 18px; }
+  .term-name { font-family:'DM Mono',monospace; font-size:11.5px; color:var(--accent); margin-bottom:5px; }
+  .term-card p { font-size:12.5px; color:var(--text2); margin:0; line-height:1.55; }
+
+  /* Endpoints */
+  .endpoint { background:var(--bg2); border:1px solid var(--border); border-radius:8px; margin-bottom:10px; overflow:hidden; }
+  .endpoint-header { padding:12px 18px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+  .method { font-family:'DM Mono',monospace; font-size:10px; font-weight:500; padding:3px 7px; border-radius:3px; letter-spacing:0.05em; }
+  .get { background:rgba(200,240,96,0.1); color:var(--accent); }
+  .post { background:rgba(107,181,255,0.1); color:var(--blue); }
+  .endpoint-path { font-family:'DM Mono',monospace; font-size:13px; color:var(--text); }
+  .endpoint-note { font-size:12px; color:var(--text3); margin-left:auto; }
+  .endpoint-body { padding:14px 18px; }
+  .endpoint-body p { font-size:13px; margin-bottom:8px; }
+
+  /* Flow */
+  .flow { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:24px 28px; margin:18px 0; }
+  .flow-step { display:grid; grid-template-columns:26px 1fr; gap:12px; margin-bottom:6px; }
+  .flow-num { width:24px; height:24px; border-radius:50%; background:var(--bg3); border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:10px; color:var(--text3); flex-shrink:0; margin-top:2px; }
+  .flow-hit .flow-num { background:var(--accent-dim); border-color:rgba(200,240,96,0.3); color:var(--accent); }
+  .flow-text { font-size:13px; color:var(--text2); padding-top:3px; }
+  .flow-connector { margin-left:12px; border-left:1px dashed var(--border2); height:10px; }
+
+  /* Status rows */
+  .status-list { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:4px 0; margin:16px 0; }
+  .status-row { display:flex; align-items:center; gap:10px; padding:10px 18px; border-bottom:1px solid var(--border); font-size:13px; }
+  .status-row:last-child { border-bottom:none; }
+  .dot-on { width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+  .dot-next { width:7px; height:7px; border-radius:50%; background:var(--blue); flex-shrink:0; }
+  .dot-off { width:7px; height:7px; border-radius:50%; background:var(--border2); flex-shrink:0; }
+  .status-text { flex:1; color:var(--text); }
+  .badge { font-size:10px; padding:2px 7px; border-radius:3px; font-family:'DM Mono',monospace; }
+  .badge-done { background:var(--accent-dim); color:var(--accent); }
+  .badge-next { background:rgba(107,181,255,0.08); color:var(--blue); }
+  .badge-later { background:var(--bg3); color:var(--text3); }
+
+  /* Pricing */
+  .pricing-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin:18px 0; }
+  .price-card { border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .price-card.featured { border-color:rgba(200,240,96,0.3); }
+  .price-head { padding:16px 18px; border-bottom:1px solid var(--border); background:var(--bg2); }
+  .price-tier { font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text3); margin-bottom:6px; }
+  .price-amount { font-family:'Instrument Serif',serif; font-size:26px; color:var(--text); }
+  .price-amount span { font-size:13px; font-family:'DM Sans',sans-serif; font-weight:300; color:var(--text2); }
+  .price-body { padding:14px 18px; display:flex; flex-direction:column; gap:7px; font-size:12px; }
+  .price-item { color:var(--text2); }
+  .price-yes { color:var(--text2); }
+  .price-no { color:var(--text3); }
+
+  /* Layer badges */
+  .layer-block { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:4px 0; margin:16px 0; }
+  .layer-row { display:grid; grid-template-columns:80px 1fr; gap:14px; padding:14px 18px; border-bottom:1px solid var(--border); align-items:start; }
+  .layer-row:last-child { border-bottom:none; }
+  .layer-badge { font-family:'DM Mono',monospace; font-size:10px; padding:4px 8px; border-radius:4px; text-align:center; }
+  .l1 { background:var(--accent-dim); color:var(--accent); border:1px solid rgba(200,240,96,0.2); }
+  .l2 { background:rgba(107,181,255,0.08); color:var(--blue); border:1px solid rgba(107,181,255,0.2); }
+  .l3 { background:rgba(176,107,255,0.08); color:var(--purple); border:1px solid rgba(176,107,255,0.2); }
+  .layer-content h4 { font-size:13.5px; font-weight:500; color:var(--text); margin-bottom:3px; }
+  .layer-content p { font-size:12.5px; margin:0; }
+
+  /* Scroll */
+  .scroll-progress { position:fixed; top:0; left:256px; right:0; height:2px; background:var(--border); z-index:200; }
+  .scroll-bar { height:100%; background:var(--accent); width:0%; transition:width 0.1s; }
+
+  @media(max-width:900px) {
+    .layout { grid-template-columns:1fr; }
+    .sidebar { display:none; }
+    .main { margin-left:0; }
+    .hero { padding:36px 24px; }
+    .content { padding:36px 24px; }
+    .term-grid,.pricing-grid { grid-template-columns:1fr; }
+    .hero h1 { font-size:36px; }
+    .scroll-progress { left:0; }
+    .stats { flex-direction:column; }
+    .stat { border-right:none; border-bottom:1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<div class="scroll-progress"><div class="scroll-bar" id="sb"></div></div>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="wordmark">AWP</div>
+    <div class="version">Agent Web Protocol · v0.2</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Introduction</div>
+    <a href="#overview" class="nav-link active">Overview</a>
+    <a href="#how-it-works" class="nav-link">How it works</a>
+    <a href="#architecture" class="nav-link">Architecture</a>
+    <a href="#why-open" class="nav-link">Why open source</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Concepts</div>
+    <a href="#terminology" class="nav-link">Terminology</a>
+    <a href="#entries" class="nav-link">Entries</a>
+    <a href="#confidence" class="nav-link">Confidence scoring</a>
+    <a href="#volatility" class="nav-link">Volatility classes</a>
+    <a href="#trust" class="nav-link">Trust model</a>
+    <a href="#flagging" class="nav-link">Flagging system</a>
+    <a href="#nodes" class="nav-link">Nodes & federation</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">API Reference</div>
+    <a href="#api-query" class="nav-link">GET /query</a>
+    <a href="#api-entry" class="nav-link">GET /entry/:id</a>
+    <a href="#api-write" class="nav-link">POST /entry</a>
+    <a href="#api-flag" class="nav-link">POST /flag/:id</a>
+    <a href="#api-agents" class="nav-link">POST /agents/register</a>
+    <a href="#api-me" class="nav-link">GET /agents/me</a>
+    <a href="#api-health" class="nav-link">GET /health</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">SDK</div>
+    <a href="#sdk-install" class="nav-link">Installation</a>
+    <a href="#sdk-usage" class="nav-link">Usage</a>
+    <a href="#sdk-reference" class="nav-link">Reference</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Guides</div>
+    <a href="#quickstart" class="nav-link">Quickstart</a>
+    <a href="#self-host" class="nav-link">Self-hosting</a>
+    <a href="#roadmap" class="nav-link">Roadmap</a>
+    <a href="#comparison" class="nav-link">vs. other tools</a>
+    <a href="#business" class="nav-link">Business model</a>
+  </div>
+</aside>
+
+<main class="main">
+
+<div class="hero">
+  <div class="hero-eyebrow"><span class="dot"></span> Live at awp-net.up.railway.app</div>
+  <h1>The internet,<br>rebuilt for <em>agents</em></h1>
+  <p class="lead">AWP is an open, federated knowledge protocol. AI agents query structured facts instead of scraping HTML. The index grows itself — every cache miss enriches it for every future agent.</p>
+  <div class="hero-actions">
+    <a href="#quickstart" class="btn btn-primary">→ Quickstart</a>
+    <a href="https://github.com/BROODHONEY/awp-client" class="btn btn-ghost">GitHub</a>
+    <a href="https://awp-net.up.railway.app/health" class="btn btn-ghost btn-mono">awp-net.up.railway.app</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-value">~100ms</div>
+    <div class="stat-label">Cache hit latency</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">384-dim</div>
+    <div class="stat-label">Semantic embeddings</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">0.0–1.0</div>
+    <div class="stat-label">Live confidence scoring</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">MIT</div>
+    <div class="stat-label">License — free forever</div>
+  </div>
+</div>
+
+<div class="content">
+
+<section id="overview">
+  <div class="section-label">Introduction</div>
+  <h2>What is AWP?</h2>
+  <p>The web was built for human eyes. Every page an AI agent fetches is wrapped in navigation bars, cookie banners, ads, and prose written to engage readers. When an agent retrieves a webpage to answer a question, roughly <strong>5% of what it downloads is useful signal</strong>. The rest is noise.</p>
+  <p>AWP is a second layer of the web — a structured index that sits in front of it. It stores the same information as the human web, restructured for machine consumption: <strong>discrete typed facts, semantic embeddings, source provenance, and live confidence scoring</strong>.</p>
+  <p>The first agent to fetch a page does the expensive extraction work once. Every subsequent agent querying the same topic gets the structured result instantly — no HTML, no parsing, no waste.</p>
+
+  <div class="callout callout-success">
+    <div class="callout-icon">✦</div>
+    <p>AWP is open source and free to use. The public node at <strong>awp-net.up.railway.app</strong> is free to query with no API key. Self-host your own node with the MIT-licensed server code.</p>
+  </div>
+
+  <table>
+    <thead><tr><th>Without AWP</th><th>With AWP</th></tr></thead>
+    <tbody>
+      <tr><td>Full web fetch every query</td><td>~100ms cache hit after first fetch</td></tr>
+      <tr><td>5% useful signal in response</td><td>100% typed, structured facts</td></tr>
+      <tr><td>Each agent works in isolation</td><td>Every agent enriches the index for all future agents</td></tr>
+      <tr><td>No provenance or confidence</td><td>Source attribution + live staleness scoring</td></tr>
+      <tr><td>Pay per query (Exa, Tavily)</td><td>Free cache hits, web cost only on miss</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="how-it-works">
+  <div class="section-label">Introduction</div>
+  <h2>How it works</h2>
+  <p>Every query follows the same path. AWP embeds the question as a semantic vector, searches the index for similar entries, and either returns a cached result or falls back to the human web.</p>
+
+  <div class="flow">
+    <div class="flow-step"><div class="flow-num">1</div><div class="flow-text"><strong>Agent sends a query</strong> — natural language, no special format</div></div>
+    <div class="flow-connector"></div>
+    <div class="flow-step"><div class="flow-num">2</div><div class="flow-text"><strong>Embed</strong> — query converted to 384-dim semantic vector</div></div>
+    <div class="flow-connector"></div>
+    <div class="flow-step"><div class="flow-num">3</div><div class="flow-text"><strong>Search queries table</strong> — finds previously stored questions about the same topic (catches rephrasing)</div></div>
+    <div class="flow-connector"></div>
+    <div class="flow-step"><div class="flow-num">4</div><div class="flow-text"><strong>Search entries table</strong> — finds entries by topic embedding similarity</div></div>
+    <div class="flow-connector"></div>
+    <div class="flow-step flow-hit"><div class="flow-num">✓</div><div class="flow-text"><strong>Cache hit</strong> — live confidence computed (source × quality × freshness × flags). If above 0.45 → return instantly</div></div>
+    <div class="flow-connector"></div>
+    <div class="flow-step"><div class="flow-num">5</div><div class="flow-text"><strong>Miss or stale</strong> — web search → fetch best URL → strip HTML</div></div>
+    <div class="flow-connector"></div>
+    <div class="flow-step"><div class="flow-num">6</div><div class="flow-text"><strong>Extract</strong> — LLM pulls discrete typed facts, self-rates quality, classifies volatility</div></div>
+    <div class="flow-connector"></div>
+    <div class="flow-step flow-hit"><div class="flow-num">✓</div><div class="flow-text"><strong>Write + return</strong> — entry stored in index, query stored, same shape returned as cache hit</div></div>
+  </div>
+
+  <div class="callout callout-info">
+    <div class="callout-icon">→</div>
+    <p>The response shape is identical whether the answer came from cache or a fresh web fetch. The <code>source</code> field tells you which path was taken. Agents never need to handle two different cases.</p>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="section-label">Introduction</div>
+  <h2>Architecture</h2>
+  <div class="layer-block">
+    <div class="layer-row"><div class="layer-badge l1">Layer 1</div><div class="layer-content"><h4>Core loop — ✓ Complete</h4><p>Query endpoint, semantic search, web fallback, LLM extraction, write-back. Public node deployed at awp-net.up.railway.app.</p></div></div>
+    <div class="layer-row"><div class="layer-badge l2">Layer 2</div><div class="layer-content"><h4>Confidence + Trust — ✓ Complete</h4><p>Live confidence scoring (source authority + staleness decay + flag penalties), agent identity via API keys, trust tiers, write access gating, flagging system.</p></div></div>
+    <div class="layer-row"><div class="layer-badge l3">Layer 3</div><div class="layer-content"><h4>Federation — In progress</h4><p>Multi-node sync via /feed, cross-node corroboration, open agent registration, node discovery registry.</p></div></div>
+  </div>
+
+  <h3>Tech stack</h3>
+  <table>
+    <thead><tr><th>Component</th><th>Choice</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>Runtime</td><td>Node.js + TypeScript</td><td>Server</td></tr>
+      <tr><td>API</td><td>Hono</td><td>HTTP routing</td></tr>
+      <tr><td>Database</td><td>Supabase (pgvector)</td><td>Vector search + storage</td></tr>
+      <tr><td>Embeddings</td><td>BAAI/bge-small-en-v1.5</td><td>384-dim semantic vectors</td></tr>
+      <tr><td>Extraction LLM</td><td>Qwen/Qwen2.5-72B-Instruct</td><td>Structured fact extraction</td></tr>
+      <tr><td>HTML stripping</td><td>Cheerio</td><td>Human web → plain text</td></tr>
+      <tr><td>Hosting</td><td>Railway</td><td>Public node</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="why-open">
+  <div class="section-label">Introduction</div>
+  <h2>Why open source</h2>
+  <p>Every competitor in this space — Exa, Tavily, Parallel — is a centralized paid API. They re-fetch the web for every customer. Every agent using them does duplicate work and pays per query.</p>
+  <p>AWP is structurally different. The code is MIT licensed. Anyone can self-host. The public node is free to read. The value of the network grows with every query — a cached fact costs nothing for every future agent that needs it.</p>
+  <p>The closest historical analogy is DNS. Before DNS, every computer kept its own hosts file. DNS made domain resolution shared infrastructure. AWP does the same for factual knowledge — open protocol, federated nodes, no single owner.</p>
+  <div class="callout callout-success">
+    <div class="callout-icon">✦</div>
+    <p>Open source creates trust that closed source cannot. Developers who can read the code know exactly what happens to their queries. That trust is what drives adoption at scale.</p>
+  </div>
+</section>
+
+<hr>
+
+<section id="terminology">
+  <div class="section-label">Concepts</div>
+  <h2>Terminology</h2>
+  <div class="term-grid">
+    <div class="term-card"><div class="term-name">entry</div><p>A structured unit of knowledge — topic, typed facts, source URL, confidence metadata. The atomic unit of the AWP index.</p></div>
+    <div class="term-card"><div class="term-name">node</div><p>One running AWP server instance — one database, one API, one operator. The public node at awp-net.up.railway.app is Node 1.</p></div>
+    <div class="term-card"><div class="term-name">cache hit</div><p>A query answered from the index with confidence above 0.45. Returns in ~100ms with <code>source: "cache"</code>.</p></div>
+    <div class="term-card"><div class="term-name">cache miss</div><p>No matching entry, or entry is stale. Triggers web fallback, extracts, writes, returns. Same response shape.</p></div>
+    <div class="term-card"><div class="term-name">embedding</div><p>A 384-dim float vector representing semantic meaning. "GPT-4 token limit" and "GPT-4 context window" produce similar vectors and find the same entry.</p></div>
+    <div class="term-card"><div class="term-name">confidence score</div><p>0.0–1.0. Computed live from source authority × extraction quality × freshness × flag penalty. Never stored — always current.</p></div>
+    <div class="term-card"><div class="term-name">volatility class</div><p>How fast an entry's content changes. <code>permanent</code> / <code>slow</code> / <code>medium</code> / <code>fast</code>. Sets the confidence decay rate.</p></div>
+    <div class="term-card"><div class="term-name">flag</div><p>An agent signal that an entry may be wrong. Accumulates across agents. At threshold, confidence is penalised and a re-fetch is triggered.</p></div>
+    <div class="term-card"><div class="term-name">agent</div><p>Any client that queries or writes to AWP. Registered via POST /agents/register. Starts at trust 0.3 (read-only), earns write access at 0.6.</p></div>
+    <div class="term-card"><div class="term-name">federation</div><p>Two nodes syncing entries via /feed. Each node operator chooses who to federate with. Layer 3 — in progress.</p></div>
+  </div>
+</section>
+
+<section id="entries">
+  <div class="section-label">Concepts</div>
+  <h2>Entry structure</h2>
+  <pre><code>{
+  <span class="key">"id"</span>:         <span class="str">"3f8a2c..."</span>,
+  <span class="key">"topic"</span>:      <span class="str">"Python programming language"</span>,
+  <span class="key">"facts"</span>: [
+    { <span class="key">"claim"</span>: <span class="str">"Created by Guido van Rossum"</span>, <span class="key">"type"</span>: <span class="str">"text"</span> },
+    { <span class="key">"claim"</span>: <span class="str">"First released 1991"</span>, <span class="key">"type"</span>: <span class="str">"date"</span>, <span class="key">"value"</span>: <span class="str">"1991-02-20"</span> },
+    { <span class="key">"claim"</span>: <span class="str">"Open source"</span>, <span class="key">"type"</span>: <span class="str">"boolean"</span>, <span class="key">"value"</span>: <span class="kw">true</span> }
+  ],
+  <span class="key">"source_url"</span>:       <span class="str">"https://en.wikipedia.org/wiki/Python"</span>,
+  <span class="key">"fetched_at"</span>:       <span class="str">"2026-05-21T06:22:04Z"</span>,
+  <span class="key">"extraction_quality"</span>: <span class="num">0.88</span>,
+  <span class="key">"volatility_class"</span>:  <span class="str">"slow"</span>
+}<span class="lang">json</span></code></pre>
+
+  <table>
+    <thead><tr><th>Fact type</th><th>Description</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td>text</td><td>General string claim</td><td>"Supports multiple paradigms"</td></tr>
+      <tr><td>numeric</td><td>Quantitative fact with optional unit</td><td>value: 128000, unit: "tokens"</td></tr>
+      <tr><td>boolean</td><td>True/false fact</td><td>value: true</td></tr>
+      <tr><td>date</td><td>Temporal fact</td><td>value: "1991-02-20"</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="confidence">
+  <div class="section-label">Concepts</div>
+  <h2>Confidence scoring</h2>
+  <p>Confidence is computed live on every read from four independent signals. It is never stored — always accurate to the current moment.</p>
+  <pre><code>score = source_authority(url)
+      × extraction_quality
+      × freshness(age, volatility_class)
+      × flag_penalty(flag_count)</code></pre>
+
+  <table>
+    <thead><tr><th>Signal</th><th>How computed</th><th>Range</th></tr></thead>
+    <tbody>
+      <tr><td>source_authority</td><td>Dynamic from URL: TLD (.gov=+0.25, .edu=+0.20), subdomain (docs.*=+0.15), path (/wiki/=+0.10), UGC penalty (-0.25)</td><td>0.20–0.98</td></tr>
+      <tr><td>extraction_quality</td><td>LLM self-rates at write time</td><td>0.0–1.0</td></tr>
+      <tr><td>freshness</td><td>Exponential decay: e^(-ln2 × age / half_life)</td><td>1.0 → 0.0</td></tr>
+      <tr><td>flag_penalty</td><td>0.85^(flags - threshold) once flags exceed 3</td><td>1.0 → 0.0</td></tr>
+    </tbody>
+  </table>
+
+  <p>When score drops below <strong>0.45</strong>, the next query treats the entry as stale and re-fetches from the web. No cron jobs. No maintenance. Staleness self-heals through use.</p>
+
+  <h3>Confidence labels</h3>
+  <table>
+    <thead><tr><th>Score</th><th>Label</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>≥ 0.85</td><td>high</td><td>Fresh, authoritative source, no flags</td></tr>
+      <tr><td>0.65–0.84</td><td>medium</td><td>Good but aging or lower-authority source</td></tr>
+      <tr><td>0.45–0.64</td><td>low</td><td>Use with caution — aging or flagged</td></tr>
+      <tr><td>< 0.45</td><td>stale</td><td>Will trigger re-fetch on next query</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="volatility">
+  <div class="section-label">Concepts</div>
+  <h2>Volatility classes</h2>
+  <p>Assigned automatically by the LLM at write time. Determines confidence decay rate.</p>
+  <table>
+    <thead><tr><th>Class</th><th>Half-life</th><th>Examples</th></tr></thead>
+    <tbody>
+      <tr><td>permanent</td><td>Never decays</td><td>Mathematical facts, historical dates, capitals</td></tr>
+      <tr><td>slow</td><td>~180 days</td><td>Legal definitions, RFC specs, annual reports</td></tr>
+      <tr><td>medium</td><td>~35 days</td><td>Product features, software versions, company info</td></tr>
+      <tr><td>fast</td><td>~3 days</td><td>News, prices, sports scores</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="trust">
+  <div class="section-label">Concepts</div>
+  <h2>Trust model</h2>
+  <p><strong>Trust</strong> (write permission) and <strong>confidence</strong> (data quality) are independent. A low-trust agent writing from Wikipedia still produces a high-confidence entry.</p>
+  <table>
+    <thead><tr><th>Tier</th><th>Trust score</th><th>Permissions</th></tr></thead>
+    <tbody>
+      <tr><td>Owner</td><td>0.95–1.0</td><td>Full access — write, overwrite, set node policy</td></tr>
+      <tr><td>Verified</td><td>0.6–0.94</td><td>Write new entries, refresh stale entries</td></tr>
+      <tr><td>Public</td><td>0.0–0.59</td><td>Read only + flagging</td></tr>
+    </tbody>
+  </table>
+  <p>Agents start at trust 0.3. Trust rises as writes get corroborated and falls as entries get flagged. Write access is earned, not granted.</p>
+</section>
+
+<section id="flagging">
+  <div class="section-label">Concepts</div>
+  <h2>Flagging system</h2>
+  <p>Any agent can flag an entry as potentially wrong. Flags accumulate across different agents — one agent cannot spam-flag. When flags reach the threshold, a confidence penalty activates. At enough flags, the entry goes stale and gets re-fetched automatically.</p>
+
+  <table>
+    <thead><tr><th>Flags</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td>1–2</td><td>Recorded, no penalty yet</td></tr>
+      <tr><td>3</td><td>Penalty activates — confidence × 0.85</td></tr>
+      <tr><td>4</td><td>Confidence × 0.72</td></tr>
+      <tr><td>5</td><td>Confidence × 0.61</td></tr>
+      <tr><td>7</td><td>Most entries stale — automatic re-fetch on next query</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    <div class="callout-icon">→</div>
+    <p>The unique constraint on (entry_id, agent_id) prevents any single agent from flooding flags. Each agent gets one flag per entry.</p>
+  </div>
+</section>
+
+<section id="nodes">
+  <div class="section-label">Concepts</div>
+  <h2>Nodes & federation</h2>
+  <p>A <strong>node</strong> is one running AWP server — one database, one API, one operator. The node at <a href="https://awp-net.up.railway.app">awp-net.up.railway.app</a> is Node 1 of the parallel web.</p>
+  <p>Federation (Layer 3) lets nodes sync entries with each other. Node A publishes a <code>/feed</code> of new entries. Node B subscribes and pulls them into its own index. When Node B independently finds the same fact, it sends a <code>/corroborate</code> signal back — raising confidence on that entry across the network.</p>
+  <p>No central authority. No single point of failure. Nodes join and leave freely.</p>
+</section>
+
+<hr>
+
+<section id="api-query">
+  <div class="section-label">API Reference</div>
+  <h2>Endpoints</h2>
+
+  <div class="endpoint" id="api-query">
+    <div class="endpoint-header"><span class="method get">GET</span><span class="endpoint-path">/query</span><span class="endpoint-note">open · no auth</span></div>
+    <div class="endpoint-body">
+      <p>Main query endpoint. Embeds the question, searches the index, falls back to the web on miss.</p>
+      <table><thead><tr><th>Param</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td>q</td><td>string (required)</td><td>Natural language question</td></tr></tbody></table>
+      <pre><code><span class="cm"># Request</span>
+GET /query?q=who+founded+Ferrari
+
+<span class="cm"># Response</span>
+{
+  <span class="key">"hit"</span>:              <span class="kw">true</span>,
+  <span class="key">"source"</span>:          <span class="str">"cache"</span>,
+  <span class="key">"topic"</span>:           <span class="str">"Ferrari founding"</span>,
+  <span class="key">"facts"</span>:           [...],
+  <span class="key">"source_url"</span>:      <span class="str">"https://en.wikipedia.org/wiki/Ferrari"</span>,
+  <span class="key">"fetched_at"</span>:      <span class="str">"2026-05-21T06:22:04Z"</span>,
+  <span class="key">"confidence"</span>:      <span class="num">0.84</span>,
+  <span class="key">"confidence_label"</span>:<span class="str">"medium"</span>,
+  <span class="key">"flag_count"</span>:      <span class="num">0</span>
+}<span class="lang">http</span></code></pre>
+    </div>
+  </div>
+
+  <div class="endpoint" id="api-entry">
+    <div class="endpoint-header"><span class="method get">GET</span><span class="endpoint-path">/entry/:id</span><span class="endpoint-note">open · no auth</span></div>
+    <div class="endpoint-body"><p>Fetch a single entry by UUID. Returns 404 if not found.</p></div>
+  </div>
+
+  <div class="endpoint" id="api-write">
+    <div class="endpoint-header"><span class="method post">POST</span><span class="endpoint-path">/entry</span><span class="endpoint-note">requires trust ≥ 0.6</span></div>
+    <div class="endpoint-body">
+      <p>Write a new entry directly. For trusted agents contributing knowledge without going through the query pipeline.</p>
+      <pre><code><span class="cm"># Headers</span>
+X-AWP-Key: your-api-key
+Content-Type: application/json
+
+<span class="cm"># Body</span>
+{
+  <span class="key">"topic"</span>:            <span class="str">"AWP Agent Web Protocol"</span>,
+  <span class="key">"facts"</span>:            [{ <span class="key">"claim"</span>: <span class="str">"Open source"</span>, <span class="key">"type"</span>: <span class="str">"boolean"</span>, <span class="key">"value"</span>: <span class="kw">true</span> }],
+  <span class="key">"source_url"</span>:       <span class="str">"https://github.com/BROODHONEY/awp"</span>,
+  <span class="key">"volatility_class"</span>: <span class="str">"slow"</span>
+}<span class="lang">http</span></code></pre>
+    </div>
+  </div>
+
+  <div class="endpoint" id="api-flag">
+    <div class="endpoint-header"><span class="method post">POST</span><span class="endpoint-path">/flag/:id</span><span class="endpoint-note">open · optional auth</span></div>
+    <div class="endpoint-body">
+      <p>Flag an entry as potentially wrong. One flag per agent per entry. Accumulates confidence penalties at threshold.</p>
+      <pre><code>{
+  <span class="key">"reason"</span>: <span class="str">"Facts appear outdated"</span>  <span class="cm">// optional</span>
+}<span class="lang">json</span></code></pre>
+    </div>
+  </div>
+
+  <div class="endpoint" id="api-agents">
+    <div class="endpoint-header"><span class="method post">POST</span><span class="endpoint-path">/agents/register</span><span class="endpoint-note">open · creates agent</span></div>
+    <div class="endpoint-body">
+      <p>Register a new agent. Returns a one-time API key — store it securely.</p>
+      <pre><code>{ <span class="key">"name"</span>: <span class="str">"my-research-agent"</span> }<span class="lang">json</span></code></pre>
+    </div>
+  </div>
+
+  <div class="endpoint" id="api-me">
+    <div class="endpoint-header"><span class="method get">GET</span><span class="endpoint-path">/agents/me</span><span class="endpoint-note">requires auth</span></div>
+    <div class="endpoint-body"><p>Returns the current agent's trust score, tier, write count, and access level.</p></div>
+  </div>
+
+  <div class="endpoint" id="api-health">
+    <div class="endpoint-header"><span class="method get">GET</span><span class="endpoint-path">/health</span><span class="endpoint-note">open</span></div>
+    <div class="endpoint-body"><pre><code>{ <span class="key">"status"</span>: <span class="str">"ok"</span>, <span class="key">"timestamp"</span>: <span class="str">"..."</span>, <span class="key">"node"</span>: <span class="str">"awp-prototype-v0.2"</span>, <span class="key">"layer"</span>: <span class="num">2</span> }<span class="lang">json</span></code></pre></div>
+  </div>
+</section>
+
+<hr>
+
+<section id="sdk-install">
+  <div class="section-label">SDK</div>
+  <h2>awp-client</h2>
+  <p>A TypeScript/JavaScript client for querying any AWP node. Defaults to the public node — zero configuration needed.</p>
+
+  <h3>Installation</h3>
+  <pre><code><span class="fn">npm</span> install awp-client<span class="lang">bash</span></code></pre>
+
+  <h3 id="sdk-usage">Zero-config usage</h3>
+  <pre><code><span class="kw">import</span> { <span class="fn">AWP</span> } <span class="kw">from</span> <span class="str">'awp-client'</span>
+
+<span class="cm">// No config needed — queries the public node automatically</span>
+<span class="kw">const</span> awp = <span class="kw">new</span> <span class="fn">AWP</span>()
+
+<span class="kw">const</span> result = <span class="kw">await</span> awp.<span class="fn">query</span>(<span class="str">'who founded Ferrari'</span>)
+
+console.<span class="fn">log</span>(result.source)           <span class="cm">// "cache" or "web"</span>
+console.<span class="fn">log</span>(result.topic)            <span class="cm">// "Ferrari S.p.A."</span>
+console.<span class="fn">log</span>(result.facts)            <span class="cm">// typed discrete facts</span>
+console.<span class="fn">log</span>(result.confidence)       <span class="cm">// 0.84</span>
+console.<span class="fn">log</span>(result.confidence_label) <span class="cm">// "medium"</span>
+console.<span class="fn">log</span>(result.flag_count)       <span class="cm">// 0</span><span class="lang">typescript</span></code></pre>
+
+  <h3>Using in an agent</h3>
+  <pre><code><span class="kw">import</span> { <span class="fn">AWP</span> } <span class="kw">from</span> <span class="str">'awp-client'</span>
+
+<span class="kw">const</span> awp = <span class="kw">new</span> <span class="fn">AWP</span>()
+
+<span class="kw">async function</span> <span class="fn">researchAgent</span>(question: <span class="kw">string</span>) {
+  <span class="kw">const</span> result = <span class="kw">await</span> awp.<span class="fn">query</span>(question)
+
+  <span class="cm">// Skip low-confidence results and let your agent decide</span>
+  <span class="kw">if</span> (result.confidence_label === <span class="str">'stale'</span>) {
+    <span class="kw">return</span> { source: <span class="str">'unreliable'</span>, facts: [] }
+  }
+
+  <span class="cm">// Format facts as LLM context</span>
+  <span class="kw">const</span> context = result.facts
+    .<span class="fn">map</span>(f => f.claim)
+    .<span class="fn">join</span>(<span class="str">'\n'</span>)
+
+  <span class="kw">return</span> { source: result.source_url, facts: context }
+}<span class="lang">typescript</span></code></pre>
+
+  <h3>Custom node</h3>
+  <pre><code><span class="cm">// Point at your own self-hosted node</span>
+<span class="kw">const</span> awp = <span class="kw">new</span> <span class="fn">AWP</span>({ node: <span class="str">'https://my-awp-node.com'</span> })<span class="lang">typescript</span></code></pre>
+
+  <h3 id="sdk-reference">Full method reference</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>query(question)</td><td>Promise&lt;AWPResult&gt;</td><td>Search index, fall back to web on miss</td></tr>
+      <tr><td>getEntry(id)</td><td>Promise&lt;AWPResult|null&gt;</td><td>Fetch specific entry by ID</td></tr>
+      <tr><td>isHealthy()</td><td>Promise&lt;boolean&gt;</td><td>Check if node is reachable</td></tr>
+    </tbody>
+  </table>
+
+  <pre><code><span class="kw">interface</span> <span class="fn">AWPResult</span> {
+  hit:              <span class="kw">boolean</span>
+  source:           <span class="str">'cache'</span> | <span class="str">'web'</span>
+  topic:            <span class="kw">string</span>
+  facts:            <span class="fn">AWPFact</span>[]
+  source_url:       <span class="kw">string</span>
+  fetched_at:       <span class="kw">string</span>
+  confidence:       <span class="kw">number</span>
+  confidence_label: <span class="str">'high'</span> | <span class="str">'medium'</span> | <span class="str">'low'</span> | <span class="str">'stale'</span>
+  flag_count:       <span class="kw">number</span>
+  similarity?:      <span class="kw">number</span>
+}
+
+<span class="kw">interface</span> <span class="fn">AWPFact</span> {
+  claim:  <span class="kw">string</span>
+  type:   <span class="str">'text'</span> | <span class="str">'numeric'</span> | <span class="str">'boolean'</span> | <span class="str">'date'</span>
+  value?: <span class="kw">string</span> | <span class="kw">number</span> | <span class="kw">boolean</span>
+  unit?:  <span class="kw">string</span>
+}<span class="lang">typescript</span></code></pre>
+</section>
+
+<hr>
+
+<section id="quickstart">
+  <div class="section-label">Guides</div>
+  <h2>Quickstart</h2>
+  <p>Query the public node in 30 seconds.</p>
+
+  <pre><code><span class="fn">npm</span> install awp-client<span class="lang">bash</span></code></pre>
+
+  <pre><code><span class="kw">import</span> { <span class="fn">AWP</span> } <span class="kw">from</span> <span class="str">'awp-client'</span>
+
+<span class="kw">const</span> awp = <span class="kw">new</span> <span class="fn">AWP</span>()   <span class="cm">// uses awp-net.up.railway.app by default</span>
+<span class="kw">const</span> r   = <span class="kw">await</span> awp.<span class="fn">query</span>(<span class="str">'what is machine learning'</span>)
+
+console.<span class="fn">log</span>(r.topic, r.confidence_label, r.facts.<span class="fn">length</span>, <span class="str">'facts'</span>)<span class="lang">typescript</span></code></pre>
+
+  <p>Or test the API directly:</p>
+  <pre><code>curl <span class="str">"https://awp-net.up.railway.app/query?q=what+is+machine+learning"</span>
+curl <span class="str">"https://awp-net.up.railway.app/health"</span><span class="lang">bash</span></code></pre>
+
+  <p>Register an agent to write to the index:</p>
+  <pre><code>curl -X POST https://awp-net.up.railway.app/agents/register \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{"name": "my-agent"}'</span><span class="lang">bash</span></code></pre>
+</section>
+
+<section id="self-host">
+  <div class="section-label">Guides</div>
+  <h2>Self-hosting a node</h2>
+  <p>Run your own AWP node with a private index and your own trust policies. Full source code at <a href="https://github.com/BROODHONEY/awp">github.com/BROODHONEY/awp</a>.</p>
+
+  <h3>Prerequisites</h3>
+  <p>Accounts at: <strong>Supabase</strong> (free tier), <strong>HuggingFace</strong> (free token with inference permissions).</p>
+
+  <h3>1. Clone and install</h3>
+  <pre><code>git clone https://github.com/BROODHONEY/awp
+cd awp && npm install<span class="lang">bash</span></code></pre>
+
+  <h3>2. Supabase setup</h3>
+  <p>Create a free project at supabase.com. Run <code>supabase/schema.sql</code> in the SQL editor. Then grant permissions:</p>
+  <pre><code>GRANT ALL ON public.entries TO service_role;
+GRANT ALL ON public.queries TO service_role;
+GRANT ALL ON public.agents TO service_role;
+GRANT ALL ON public.flags TO service_role;
+GRANT EXECUTE ON FUNCTION search_entries TO service_role;
+GRANT EXECUTE ON FUNCTION search_queries TO service_role;
+GRANT EXECUTE ON FUNCTION get_flag_count TO service_role;
+GRANT EXECUTE ON FUNCTION increment_agent_writes TO service_role;<span class="lang">sql</span></code></pre>
+
+  <h3>3. Environment variables</h3>
+  <pre><code>SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=eyJhbGci...   <span class="cm"># service_role key</span>
+HF_API_KEY=hf_...                  <span class="cm"># inference permissions required</span>
+PORT=3000<span class="lang">bash</span></code></pre>
+
+  <h3>4. Create your owner agent</h3>
+  <pre><code><span class="cm">-- In Supabase SQL editor</span>
+INSERT INTO agents (name, api_key, trust_score, tier)
+VALUES (<span class="str">'owner'</span>, <span class="str">'your-secret-key'</span>, <span class="num">1.0</span>, <span class="str">'owner'</span>);<span class="lang">sql</span></code></pre>
+
+  <h3>5. Run</h3>
+  <pre><code>npm run dev<span class="lang">bash</span></code></pre>
+
+  <div class="callout callout-success">
+    <div class="callout-icon">✦</div>
+    <p>Deploy to Railway, Render, or Fly.io for a public URL. Add environment variables in the hosting dashboard — same as your local .env.</p>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="section-label">Guides</div>
+  <h2>Roadmap</h2>
+  <div class="status-list">
+    <div class="status-row"><div class="dot-on"></div><div class="status-text">Layer 1 — Core query/cache/web fallback loop</div><div class="badge badge-done">done</div></div>
+    <div class="status-row"><div class="dot-on"></div><div class="status-text">Layer 1 — Public node deployed (awp-net.up.railway.app)</div><div class="badge badge-done">done</div></div>
+    <div class="status-row"><div class="dot-on"></div><div class="status-text">Layer 2 — Live confidence scoring (source × quality × freshness)</div><div class="badge badge-done">done</div></div>
+    <div class="status-row"><div class="dot-on"></div><div class="status-text">Layer 2 — Volatility classes + staleness decay</div><div class="badge badge-done">done</div></div>
+    <div class="status-row"><div class="dot-on"></div><div class="status-text">Layer 2 — Agent identity + trust tiers</div><div class="badge badge-done">done</div></div>
+    <div class="status-row"><div class="dot-on"></div><div class="status-text">Layer 2 — Flagging system with confidence penalties</div><div class="badge badge-done">done</div></div>
+    <div class="status-row"><div class="dot-on"></div><div class="status-text">awp-client SDK with zero-config public node default</div><div class="badge badge-done">done</div></div>
+    <div class="status-row"><div class="dot-next"></div><div class="status-text">Publish awp-client to npm</div><div class="badge badge-next">next</div></div>
+    <div class="status-row"><div class="dot-next"></div><div class="status-text">Layer 3 — /feed federation endpoint</div><div class="badge badge-next">next</div></div>
+    <div class="status-row"><div class="dot-next"></div><div class="status-text">Layer 3 — /corroborate cross-node signal</div><div class="badge badge-next">next</div></div>
+    <div class="status-row"><div class="dot-off"></div><div class="status-text">Layer 3 — Node discovery registry</div><div class="badge badge-later">later</div></div>
+    <div class="status-row"><div class="dot-off"></div><div class="status-text">Behavioral trust score (auto-update from corroboration)</div><div class="badge badge-later">later</div></div>
+    <div class="status-row"><div class="dot-off"></div><div class="status-text">Managed hosted nodes (paid tier)</div><div class="badge badge-later">later</div></div>
+  </div>
+</section>
+
+<section id="comparison">
+  <div class="section-label">Guides</div>
+  <h2>How AWP differs</h2>
+  <table>
+    <thead><tr><th>Tool</th><th>What it does</th><th>Gap vs AWP</th></tr></thead>
+    <tbody>
+      <tr><td>Exa AI</td><td>Neural search API, $85M raised</td><td>Centralized, $5/1k queries, no shared cache</td></tr>
+      <tr><td>Tavily</td><td>Agent-focused search API</td><td>Centralized, paid, no caching layer</td></tr>
+      <tr><td>Parallel.ai</td><td>Enterprise web API, $2B valuation</td><td>Proprietary, expensive, Fortune 500 only</td></tr>
+      <tr><td>Firecrawl</td><td>Web scraping + extraction</td><td>No knowledge index, no semantic search</td></tr>
+      <tr><td>RAG pipelines</td><td>Private vector stores</td><td>Each team builds their own, knowledge not shared</td></tr>
+    </tbody>
+  </table>
+  <p>AWP's differentiation: <strong>open protocol + shared index + confidence scoring + federated nodes</strong>. Every other tool is a paid centralized service. AWP is infrastructure.</p>
+</section>
+
+<section id="business">
+  <div class="section-label">Guides</div>
+  <h2>Business model</h2>
+  <p>AWP follows the open core model. The protocol, the server code, and the public node are free forever. Revenue comes from managed infrastructure for teams that don't want to run their own node.</p>
+
+  <div class="pricing-grid">
+    <div class="price-card">
+      <div class="price-head"><div class="price-tier">Community</div><div class="price-amount">Free <span>forever</span></div></div>
+      <div class="price-body">
+        <div class="price-yes">✓ Query public node</div>
+        <div class="price-yes">✓ awp-client SDK</div>
+        <div class="price-yes">✓ Self-host your node</div>
+        <div class="price-yes">✓ Full source code (MIT)</div>
+        <div class="price-no">✗ No managed hosting</div>
+        <div class="price-no">✗ No private index</div>
+      </div>
+    </div>
+    <div class="price-card featured">
+      <div class="price-head"><div class="price-tier">Managed Node</div><div class="price-amount">$29 <span>/month</span></div></div>
+      <div class="price-body">
+        <div class="price-yes">✓ Everything in Community</div>
+        <div class="price-yes">✓ Hosted AWP node</div>
+        <div class="price-yes">✓ Private index</div>
+        <div class="price-yes">✓ 99.9% uptime SLA</div>
+        <div class="price-yes">✓ Analytics dashboard</div>
+        <div class="price-yes">✓ Email support</div>
+      </div>
+    </div>
+    <div class="price-card">
+      <div class="price-head"><div class="price-tier">Enterprise</div><div class="price-amount">Custom</div></div>
+      <div class="price-body">
+        <div class="price-yes">✓ Everything in Managed</div>
+        <div class="price-yes">✓ Dedicated infrastructure</div>
+        <div class="price-yes">✓ Federation controls</div>
+        <div class="price-yes">✓ Priority support + SLA</div>
+        <div class="price-yes">✓ On-premise option</div>
+      </div>
+    </div>
+  </div>
+
+  <p>The free tier is not a loss leader — it is the growth engine. Every developer who self-hosts and builds with AWP makes the network more valuable. Every agent that queries the public node enriches the shared index.</p>
+</section>
+
+</div>
+</main>
+</div>
+
+<script>
+window.addEventListener('scroll', () => {
+  const t = document.documentElement.scrollHeight - window.innerHeight
+  document.getElementById('sb').style.width = (window.scrollY/t*100)+'%'
+})
+const sections = document.querySelectorAll('section[id]')
+const links = document.querySelectorAll('.nav-link')
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting) {
+      links.forEach(l => {
+        l.classList.toggle('active', l.getAttribute('href')==='#'+e.target.id)
+      })
+    }
+  })
+}, {threshold:0.2, rootMargin:'-15% 0px -65% 0px'}).observe
+sections.forEach(s => new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting) links.forEach(l => l.classList.toggle('active', l.getAttribute('href')==='#'+e.target.id))
+  })
+}, {threshold:0.2, rootMargin:'-15% 0px -65% 0px'}).observe(s))
+</script>
+</body>
+</html>
